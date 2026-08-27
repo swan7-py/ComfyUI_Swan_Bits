@@ -1,0 +1,2 @@
+# ComfyUI_Swan_Bits
+用来装载一些零碎的comfyui插件，避免安装过多的依赖
