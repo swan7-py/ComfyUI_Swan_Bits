@@ -1,0 +1,18 @@
+[project]
+name = "ComfyUI_Swan_Bits"
+description = "个人零散节点收录，开放给大家用"
+version = "1.0.2"
+license = {file = "LICENSE"} 
+
+
+
+[project.urls]
+Repository = "https://github.com/swan7-py/ComfyUI_Swan_Bits"
+#  Used by Comfy Registry https://registry.comfy.org
+
+
+[tool.comfy]
+PublisherId = "swan7-py"
+DisplayName = "ComfyUI_Swan_Bits"
+Icon = ""
+# "requires-comfyui" = ">=1.0.0"  # ComfyUI version compatibility
