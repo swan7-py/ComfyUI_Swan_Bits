@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI_Swan_Bits"
 description = "个人零散节点收录，开放给大家用"
-version = "1.0.0"
+version = "1.1.0"
 license = {file = "LICENSE"} 
 
 
