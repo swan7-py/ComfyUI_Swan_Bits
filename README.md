@@ -45,7 +45,7 @@ SamplerCustom (低清 / low-res, low_sigmas, add_noise=True)
 ## 鸣谢 / Acknowledgements
 
 - [SelfLift: Accelerating Few-Step Diffusion via Self-Recovering Resolution Transition](https://arxiv.org/abs/2609.02036) —— SelfLift-zero 过渡算法来源；ComfyUI 实现参考 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift)，感谢原作者。/ Source of the SelfLift-zero transition algorithm; ComfyUI implementation reference.
-- [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) —— H3 学习式上采样权重与推理实现，Load 节点复用其模型加载，感谢原作者。/ The H3 learned upscaler weights and inference code; the loader node reuses its model loading. Thanks to the original author.
+- [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) —— H3 学习式上采样权重与网络架构来源，本包内的模型加载代码移植自该项目（自包含、无运行时依赖），感谢原作者。/ Source of the H3 learned upscaler weights and network architecture; the model-loading code in this package is a self-contained port of that project (no runtime dependency). Thanks to the original author.
 
 ## 安装 / Install
 把本文件夹复制到 `ComfyUI/custom_nodes/` 并重启 ComfyUI。/ Copy this folder into `ComfyUI/custom_nodes/` and restart ComfyUI.

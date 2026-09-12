@@ -16,14 +16,13 @@ The lift implements the SelfLift-zero transition (arXiv:2609.02036, Eq. 3-10
 minus the NFE-reuse trick): paired direct/pixel-VAE lifts of the clean endpoint,
 residual risk map, top-rho artifact-aware correction.
 """
-import importlib.util
 import os
-import sys
 
 import torch
 import torch.nn.functional as F
 
 import folder_paths
+from .h3_upscaler_model import load_model as _load_upscaler_model, make_norm_tensors
 
 _LATENT_UPSCALE_FOLDER = "latent_upscale_models"
 if _LATENT_UPSCALE_FOLDER not in folder_paths.folder_names_and_paths:
@@ -31,11 +30,6 @@ if _LATENT_UPSCALE_FOLDER not in folder_paths.folder_names_and_paths:
         _LATENT_UPSCALE_FOLDER,
         os.path.join(folder_paths.models_dir, _LATENT_UPSCALE_FOLDER),
     )
-
-_LBH_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "Comfyui_Minimax_h3_latent_Upscaler", "nodes", "minimax_h3_latent_upscaler_3d.py",
-)
 
 try:
     import comfy.nested_tensor
@@ -46,35 +40,6 @@ except ImportError:
 H3_UPSCALER_API_VERSION = 1
 H3_UPSCALER_KIND = "minimax_h3_learned_latent_upscaler"
 _PRECISION_DTYPES = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
-
-_lbh_module = None
-
-
-def _load_lbh():
-    """Load the LBH inference module.
-
-    ComfyUI imports custom nodes without putting custom_nodes on sys.path, so a
-    plain ``import Comfyui_Minimax_h3_latent_Upscaler`` fails at runtime. Reuse the
-    module instance ComfyUI already loaded (matched by __file__) to share its model
-    cache; otherwise load the file directly, which works because that module has no
-    relative imports.
-    """
-    global _lbh_module
-    if _lbh_module is not None:
-        return _lbh_module
-    if not os.path.isfile(_LBH_FILE):
-        raise ImportError(f"Swan H3 upscaler loader cannot find the LBH module file: {_LBH_FILE}")
-    for module in list(sys.modules.values()):
-        module_file = getattr(module, "__file__", None)
-        if module_file and os.path.normcase(module_file) == os.path.normcase(_LBH_FILE):
-            _lbh_module = module
-            return _lbh_module
-    spec = importlib.util.spec_from_file_location("_swan_lbh_h3_upscaler_3d", _LBH_FILE)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault(spec.name, module)
-    spec.loader.exec_module(module)
-    _lbh_module = module
-    return _lbh_module
 
 
 def _scan_models():
@@ -120,15 +85,15 @@ class SwanH3UpscalerProvider:
         self.precision = precision
         self.offload_after_upscale = bool(offload_after_upscale)
         self.dtype = _PRECISION_DTYPES[precision]
-        self._lbh = _load_lbh()
         if "h3" not in model_name.lower():
             self._verify_resizer_arch(model_name)
-        self.model = self._lbh.load_model(model_name, torch.device(device), precision)
+        self.model = _load_upscaler_model(model_name, torch.device(device), precision)
 
     def _verify_resizer_arch(self, model_name):
         """Fail with a clear message when the picked checkpoint is not a LatentResizer3D."""
+        from .h3_upscaler_model import _load_raw_sd, _extract_upscaler_sd
         path = folder_paths.get_full_path_or_raise(_LATENT_UPSCALE_FOLDER, model_name)
-        up_sd = self._lbh._extract_upscaler_sd(self._lbh._load_raw_sd(path))
+        up_sd = _extract_upscaler_sd(_load_raw_sd(path))
         if "conv_in.weight" not in up_sd:
             raise ValueError(
                 f"'{model_name}' is not a MiniMax H3 3D latent upscaler (no conv_in.* weights). "
@@ -149,7 +114,7 @@ class SwanH3UpscalerProvider:
             s = s.unsqueeze(2)
         b, c, t, h_in, w_in = s.shape
         scale = ((target_w / w_in) + (target_h / h_in)) / 2.0
-        mean, std = self._lbh._make_norm_tensors(dev, self.dtype)
+        mean, std = make_norm_tensors(dev, self.dtype)
         with torch.inference_mode():
             s_norm = (s - mean) / std
             out = model(s_norm, scale=scale, target_size=(t, target_h, target_w),
