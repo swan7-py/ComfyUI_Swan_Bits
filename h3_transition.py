@@ -16,6 +16,7 @@ The lift implements the SelfLift-zero transition (arXiv:2609.02036, Eq. 3-10
 minus the NFE-reuse trick): paired direct/pixel-VAE lifts of the clean endpoint,
 residual risk map, top-rho artifact-aware correction.
 """
+import math
 import os
 
 import torch
@@ -266,6 +267,43 @@ def _pixel_anchor(video, vae, target_hw):
     return torch.cat([anchor_single(sample) for sample in video.split(1)], dim=0)
 
 
+def _resize_spatial_mask(mask, size):
+    if tuple(mask.shape[-2:]) == tuple(size):
+        return mask
+    lead = mask.shape[:-2]
+    m = F.interpolate(mask.reshape(-1, 1, *mask.shape[-2:]).float(),
+                      size=size, mode="bilinear", align_corners=False)
+    return m.reshape(*lead, *size).to(mask.dtype)
+
+
+def _carry_noise_mask(mask, streams, v_idx, target_hw):
+    """Carry the low-res stage's noise_mask to the target grid.
+
+    The video mask is bilinear-rescaled to the target grid; audio masks are never
+    spatially rescaled. Supported forms: NestedTensor per-stream masks, the core
+    packed [B,1,N] AV mask, and plain video-shaped masks. Other shapes pass
+    through unchanged rather than guessed at.
+    """
+    if _NESTED_CLS is not None and isinstance(mask, _NESTED_CLS) and mask.is_nested:
+        masks = list(mask.unbind())
+        if len(masks) == len(streams):
+            masks[v_idx] = _resize_spatial_mask(masks[v_idx].float(), target_hw).to(masks[v_idx].dtype)
+            return _NESTED_CLS(masks)
+        return mask
+    if isinstance(mask, torch.Tensor) and mask.ndim == 3 and mask.shape[1] == 1:
+        sizes = [math.prod(s.shape[1:]) for s in streams]
+        if mask.shape[-1] == sum(sizes):
+            parts = list(mask.split(sizes, dim=-1))
+            vm = parts[v_idx].reshape(mask.shape[0], *streams[v_idx].shape[1:])
+            vm = _resize_spatial_mask(vm.float(), target_hw).to(mask.dtype)
+            parts[v_idx] = vm.reshape(mask.shape[0], 1, -1)
+            return torch.cat(parts, dim=-1)
+        return mask
+    if isinstance(mask, torch.Tensor) and mask.ndim >= 3 and tuple(mask.shape[-2:]) == tuple(streams[v_idx].shape[-2:]):
+        return _resize_spatial_mask(mask.float(), target_hw).to(mask.dtype)
+    return mask
+
+
 def _consistency_lift(z_lat, z_pix, rho, w_min, w_max):
     """SelfLift-zero correction: move the top-rho risky locations toward the pixel anchor."""
     if rho <= 0.0:
@@ -403,7 +441,14 @@ class SWAN_TransitionLift:
 
         out_streams = list(streams)
         out_streams[v_idx] = lifted.to(device=video.device, dtype=video.dtype)
-        return ({"samples": _pack(out_streams, nested)},)
+        result = {k: v for k, v in lowres_latent.items() if k != "samples"}
+        result["samples"] = _pack(out_streams, nested)
+        noise_mask = lowres_latent.get("noise_mask", None)
+        if noise_mask is not None:
+            # keep inpaint masks working in the high-res stage: rescale the video
+            # mask to the target grid, pass audio masks through untouched
+            result["noise_mask"] = _carry_noise_mask(noise_mask, streams, v_idx, target_hw)
+        return (result,)
 
 
 NODE_CLASS_MAPPINGS = {
