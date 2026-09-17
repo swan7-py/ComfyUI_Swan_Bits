@@ -1,5 +1,6 @@
 from .audio_drive import SWAN_MiniMaxH3AudioDrive
 from .audio_info import SWAN_AudioInfo
+from .h3_tiling import SWAN_H3TiledModel
 from .h3_transition import (
     SWAN_H3UpscalerLoader,
     SWAN_SigmasLowZero,
@@ -14,6 +15,7 @@ NODE_CLASS_MAPPINGS = {
     "SWAN_SigmasLowZero": SWAN_SigmasLowZero,
     "SWAN_TransitionLift": SWAN_TransitionLift,
     "SWAN_KeyframeResize": SWAN_KeyframeResize,
+    "SWAN_H3TiledModel": SWAN_H3TiledModel,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -23,4 +25,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SWAN_SigmasLowZero": "Swan Sigmas Split: Low Runs to Zero",
     "SWAN_TransitionLift": "Swan SelfLift Transition Lift (H3)",
     "SWAN_KeyframeResize": "Swan Resize H3 Keyframes (Conditioning)",
+    "SWAN_H3TiledModel": "Swan H3 Tiled Model (High Stage)",
 }

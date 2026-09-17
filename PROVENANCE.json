@@ -1,0 +1,28 @@
+{
+  "ported_module": "h3_tiling.py",
+  "ported_from": "https://github.com/slmonker/selflift-Avatar",
+  "basis": "The published h3_tiling.py of selflift-Avatar v0.1.2-experimental. Its sha256 matches the published_python_sha256 entry for h3_tiling.py in that repository's PROVENANCE.json, confirming the exact file that was ported.",
+  "upstream": "https://github.com/facok/comfyui-SelfLift",
+  "upstream_basis": "selflift-Avatar's h3_tiling.py is a snapshot of the upstream file plus a mask-compatibility guard. selflift-Avatar does not record the upstream commit it snapshotted; the checked hash below is the current upstream file at the commit listed.",
+  "upstream_commit_checked": "19ec540505dcbc261aaecf450d83c7536be2826d",
+  "source_sha256": {
+    "slmonker/selflift-Avatar@98441c9b9ee4580e0ca251049a6db2172ccfeb1a h3_tiling.py": "612c81b8d629b1c3ba7a71572a06ee9d2b1092ef841a2cb1ea1ddd0e03d498ee",
+    "facok/comfyui-SelfLift@19ec540505dcbc261aaecf450d83c7536be2826d h3_tiling.py": "9ab139a147469831e893cdc594f37091fcb96c494528367eb88b786de5e004d7",
+    "facok/comfyui-SelfLift@19ec540505dcbc261aaecf450d83c7536be2826d README.md": "preserved under docs/upstream/",
+    "facok/comfyui-SelfLift@19ec540505dcbc261aaecf450d83c7536be2826d README_CN.md": "preserved under docs/upstream/"
+  },
+  "local_changes": [
+    "Error message prefix changed from 'selflift-Avatar:' to 'Swan_Bits H3 tiling:'.",
+    "Wrapper key changed from 'selflift_high_resolution_tiling' to 'swan_bits_high_resolution_tiling' so both plugins can be installed at once.",
+    "Added an optional forced tile count (plan['force_tiles']); 0 keeps the upstream automatic workspace search.",
+    "Added the SWAN_H3TiledModel node (MODEL + high-res stage LATENT -> MODEL) and a module docstring."
+  ],
+  "published_python_sha256": {
+    "__init__.py": "007ba613f2c594bf18c13e9b38348ade8da86b21d3b897eeb23645fd2f908299",
+    "audio_drive.py": "b66f7cf9a418c9dfc0ee647b8795ccd77ffad43f5a8245b53dfe8146913d8cbc",
+    "audio_info.py": "a63fd8c5885ee5aecc88422e5e61968f4e7a6c49c7bb6b6dbe78af25bf9127da",
+    "h3_tiling.py": "4b445501435cfb2d19cb2e881bbbe44cacf6b5d55945bec0eef3fb262f2476f5",
+    "h3_transition.py": "dfc7aad0e1b32ff0535d2534b74ad2bf8cc10172b77600d6a0cc736381d48d3f",
+    "h3_upscaler_model.py": "3250c7c5694c03d5d4883e847cc0455d4ca8ab1449ac262f96698d30b713d6d2"
+  }
+}

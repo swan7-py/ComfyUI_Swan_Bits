@@ -54,10 +54,36 @@ SamplerCustom (低清 / low-res, low_sigmas, add_noise=True)
 
 接 `reference_latent`（低清段的 Empty H3 AV Latent）时按它的网格精确对齐；不接则用 `scale` 缩放。无关键帧的 conditioning 原样直通。/ Connect the low-res `Empty H3 AV Latent` as `reference_latent` for an exact grid match, otherwise use `scale`. Conditioning without keyframes passes through unchanged.
 
+### Swan H3 Tiled Model (High Stage)
+高段分块采样：把每次模型评估沿较长的 2×2-patch 轴切开，逐块前向（每块都带上完整音频流与音频条件），再用归一化重叠窗把各块融合回完整网格。**只接高清段的采样器**，低清段继续用未包装的 MODEL。分块本身是 MODEL 补丁（`DIFFUSION_MODEL` + `PREPARE_SAMPLING` 两个钩子），因此**不限制采样器**。/ Spatial tiling for the high-res stage: each model evaluation is split along the longer 2x2-patch axis, every tile is evaluated with the complete audio stream and audio conditioning, and the tiles are fused back with a normalized overlap window. Wire it in front of the high-res sampler only. It works through two ModelPatcher hooks, so any sampler can be used.
+
+- 输入 / Inputs: `model` (MODEL), `stage_latent` (LATENT，高清段采样用的那个 latent), `tiles` (INT，`0`=自动 / auto，`1`=关闭 / off，`2-8`=强制), `enable_tiling` (BOOLEAN)
+- 输出 / Outputs: `model` (MODEL)
+
+参考接法 / Reference wiring:
+```
+Empty H3 AV Latent (低清) → SamplerCustom (低清, low_sigmas, 用原始 MODEL)
+  → Swan SelfLift Transition Lift → 干净的目标尺寸 latent
+      ├─→ Swan H3 Tiled Model (High Stage).stage_latent
+      │     └─→ SamplerCustom (高清, high_sigmas).model
+      └─→ SamplerCustom (高清, high_sigmas).latent_image     ← 同一个 latent 分两路
+```
+
+**遮罩限制**：分块只支持「视频遮罩全 1、音频遮罩全 0」这一种组合（即上面 `keep_audio` 产出的形态）；局部/软视频遮罩、局部音频遮罩、ControlNet 会被明确拒绝。所以数字人场景要「分块 + 保音频」时请打开 `keep_audio`。/ Tiling accepts only the video=1-everywhere / audio=0-everywhere combination (what `keep_audio` produces). Partial or soft video masks, partial audio masks and ControlNet are rejected with a clear error.
+
+**显存预算**：`tiles=0` 时按可用工作区自动挑 1–8 块；但本机 ComfyUI 的 `MIN_WEIGHT_MEMORY_RATIO` 为 0，估计偏乐观，显存吃紧时建议直接指定 `tiles`。日志里会打印 `[Swan_Bits tiling plan]` / `[Swan_Bits tiling memory]` 供核对。/ With `tiles=0` the tile count is picked automatically from the estimated workspace, but this ComfyUI reports `MIN_WEIGHT_MEMORY_RATIO = 0.0`, which makes that estimate optimistic — set `tiles` explicitly when VRAM is tight.
+
+
 ## 鸣谢 / Acknowledgements
 
 - [SelfLift: Accelerating Few-Step Diffusion via Self-Recovering Resolution Transition](https://arxiv.org/abs/2609.02036) —— SelfLift-zero 过渡算法来源；ComfyUI 实现参考 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift)，感谢原作者。/ Source of the SelfLift-zero transition algorithm; ComfyUI implementation reference.
 - [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) —— H3 学习式上采样权重与网络架构来源，本包内的模型加载代码移植自该项目（自包含、无运行时依赖），感谢原作者。/ Source of the H3 learned upscaler weights and network architecture; the model-loading code in this package is a self-contained port of that project (no runtime dependency). Thanks to the original author.
+
+## 来源与许可 / Source and licensing
+
+本包的 `h3_tiling.py`（高段分块采样）移植自 [slmonker/selflift-Avatar](https://github.com/slmonker/selflift-Avatar) v0.1.2-experimental 的 `h3_tiling.py`；而该文件本身是 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift) 同名文件的快照，外加一段遮罩兼容判定。上游文档保存在 [`docs/upstream/`](docs/upstream/)，源文件哈希与本地改动记录在 [`PROVENANCE.json`](PROVENANCE.json)。/ The `h3_tiling.py` in this package (high-res tiling) is ported from `h3_tiling.py` in [slmonker/selflift-Avatar](https://github.com/slmonker/selflift-Avatar) v0.1.2-experimental, which is itself a snapshot of the same file in [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift) plus a mask-compatibility guard. Upstream documentation is preserved under [`docs/upstream/`](docs/upstream/), and source hashes and local changes are recorded in [`PROVENANCE.json`](PROVENANCE.json).
+
+准备本包时，上游仓库未声明许可证。本仓库不代表上游作者附加任何许可证，也不意味着获得超出适用权利之外再分发上游代码或模型权重的许可。研究论文、第三方代码与模型权重由各自的作者负责。/ The upstream repositories did not declare a license at the time this package was prepared. This repository does not add a license on behalf of the upstream authors and does not imply permission to redistribute upstream code or model weights beyond the applicable rights. Research papers, third-party code, and model checkpoints remain the responsibility of their respective authors.
 
 ## 安装 / Install
 把本文件夹复制到 `ComfyUI/custom_nodes/` 并重启 ComfyUI。/ Copy this folder into `ComfyUI/custom_nodes/` and restart ComfyUI.
