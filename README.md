@@ -33,14 +33,26 @@
 ### Swan SelfLift Transition Lift (H3)
 两段式采样之间的 SelfLift-zero 过渡修复节点：对低清干净端点做双路提升——直接 latent 提升（可接学习式上采样，否则 nearest/bilinear 插值）+ VAE 像素重编码锚——以两者残差为伪影风险图，把 top-rho 高风险位置向像素锚修正（arXiv:2609.02036）。`rho=0` 时跳过像素路线，仅做直接提升。只提升视频流，音频流原样直通。输出干净的目标尺寸 latent，重加噪由下游 SamplerCustom 的 `add_noise` 完成。/ SelfLift-zero transition between two samplers: paired direct lift (learned upscaler or interpolation) plus a VAE decode→upscale→re-encode pixel anchor; the residual becomes an artifact-risk map and the top-rho risky locations are corrected toward the anchor. `rho=0` keeps the direct lift only. Video stream is lifted, audio passes through untouched. Re-noising happens in the next SamplerCustom via `add_noise`.
 
-- 输入 / Inputs: `lowres_latent` (LATENT), `target_scale` (FLOAT), `direct_lift` (learned/nearest/bilinear), `rho` (FLOAT), `w_min` / `w_max` (FLOAT), 可选 / optional: `highres_latent` (LATENT), `vae` (VAE), `upscaler` (H3_LATENT_UPSCALER)
+- 输入 / Inputs: `lowres_latent` (LATENT), `target_scale` (FLOAT), `direct_lift` (learned/nearest/bilinear), `rho` (FLOAT), `w_min` / `w_max` (FLOAT), `keep_audio` (BOOLEAN), 可选 / optional: `highres_latent` (LATENT), `vae` (VAE), `upscaler` (H3_LATENT_UPSCALER)
 - 输出 / Outputs: `highres_latent` (LATENT)
+
+**`keep_audio`**：开启后自动注入遮罩（视频=生成、音频=保留），让高清段原样沿用低清段的音频，避免音频被二次去噪重生（数字人 / 音频驱动工作流建议开启）。/ Injects a mask (video = generate, audio = preserve) so the high-res stage keeps the low-res audio instead of regenerating it — recommended for digital-human / audio-driven workflows.
+
+**`noise_mask` 透传**：低清段 latent 上的遮罩会带到输出——视频遮罩自动缩放到高清网格，音频遮罩原样直通；支持嵌套双流、核心打包 `[B,1,N]` 与普通视频形遮罩。/ Inpaint masks are carried across: the video mask is rescaled to the target grid and audio masks pass through untouched.
 
 参考接法 / Reference wiring:
 ```
 SamplerCustom (低清 / low-res, low_sigmas, add_noise=True)
   → Swan SelfLift Transition Lift → SamplerCustom (高清 / high-res, high_sigmas, add_noise=True)
 ```
+
+### Swan Resize H3 Keyframes (Conditioning)
+把 CONDITIONING 里 H3 的关键帧 / 参考 latent 缩放到低清段的 latent 网格。上游 SelfLift 在节点内部自动做这件事，拆成两个采样器后需要显式处理，否则低清段会拿到目标分辨率的参考图。/ Rescales H3 keyframe / reference latents inside CONDITIONING to the low-res stage grid. Upstream SelfLift does this internally; with two separate samplers it must be done explicitly.
+
+- 输入 / Inputs: `conditioning` (CONDITIONING), `scale` (FLOAT), 可选 / optional: `reference_latent` (LATENT)
+- 输出 / Outputs: `conditioning` (CONDITIONING)
+
+接 `reference_latent`（低清段的 Empty H3 AV Latent）时按它的网格精确对齐；不接则用 `scale` 缩放。无关键帧的 conditioning 原样直通。/ Connect the low-res `Empty H3 AV Latent` as `reference_latent` for an exact grid match, otherwise use `scale`. Conditioning without keyframes passes through unchanged.
 
 ## 鸣谢 / Acknowledgements
 

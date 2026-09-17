@@ -4,6 +4,7 @@ from .h3_transition import (
     SWAN_H3UpscalerLoader,
     SWAN_SigmasLowZero,
     SWAN_TransitionLift,
+    SWAN_KeyframeResize,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -12,6 +13,7 @@ NODE_CLASS_MAPPINGS = {
     "SWAN_H3UpscalerLoader": SWAN_H3UpscalerLoader,
     "SWAN_SigmasLowZero": SWAN_SigmasLowZero,
     "SWAN_TransitionLift": SWAN_TransitionLift,
+    "SWAN_KeyframeResize": SWAN_KeyframeResize,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -19,5 +21,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SWAN_AudioInfo": "Swan Audio Info",
     "SWAN_H3UpscalerLoader": "Swan Load H3 Latent Upscaler Model",
     "SWAN_SigmasLowZero": "Swan Sigmas Split: Low Runs to Zero",
-    "SWAN_TransitionLift": "Swan H3 Transition Lift (Flow Handoff / SelfLift)",
+    "SWAN_TransitionLift": "Swan SelfLift Transition Lift (H3)",
+    "SWAN_KeyframeResize": "Swan Resize H3 Keyframes (Conditioning)",
 }

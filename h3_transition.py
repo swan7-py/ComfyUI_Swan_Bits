@@ -267,6 +267,107 @@ def _pixel_anchor(video, vae, target_hw):
     return torch.cat([anchor_single(sample) for sample in video.split(1)], dim=0)
 
 
+def _audio_protect_mask(streams, v_idx, existing=None):
+    """Build a packed [B,1,N] AV mask: keep the video part, zero the audio part.
+
+    The fused SelfLift sampler carries the audio stream through the resolution
+    boundary on its own Euler step. A split graph re-noises whatever the lift
+    returns, so audio would be regenerated in the high stage unless it is
+    protected by an explicit mask (0 = keep).
+    """
+    parts = []
+    for index, stream in enumerate(streams):
+        n = math.prod(stream.shape[1:])
+        if index == v_idx:
+            if isinstance(existing, torch.Tensor) and existing.ndim == 3 and existing.shape[1] == 1 and existing.shape[-1] >= n:
+                parts.append(existing[:, :, :n])
+            else:
+                parts.append(stream.new_ones((stream.shape[0], 1, n)))
+        else:
+            parts.append(stream.new_zeros((stream.shape[0], 1, n)))
+    return torch.cat(parts, dim=-1)
+
+
+def _resize_keyframes(cond, scale, grid=None):
+    """Rescale H3 keyframe/reference latents inside CONDITIONING (5D video latents).
+
+    grid, when given, is the exact (h, w) latent grid of the stage that will consume
+    this conditioning (preferred: avoids rounding drift). Otherwise each keyframe
+    latent is scaled and snapped to even dimensions.
+    """
+    out = []
+    for tensor, d in cond:
+        keyframes = d.get("minimax_keyframes") if isinstance(d, dict) else None
+        if keyframes is None:
+            out.append((tensor, d))
+            continue
+        d = dict(d)
+        resized = []
+        for keyframe in keyframes:
+            keyframe = dict(keyframe)
+            lat = keyframe.get("latent")
+            if lat is not None and lat.ndim == 5:
+                if grid is not None:
+                    h, w = grid
+                else:
+                    h = max(2, int(lat.shape[-2] * scale / 2 + 0.5) * 2)
+                    w = max(2, int(lat.shape[-1] * scale / 2 + 0.5) * 2)
+                if (h, w) != (lat.shape[-2], lat.shape[-1]):
+                    keyframe["latent"] = F.interpolate(
+                        lat.float(), size=(lat.shape[2], h, w), mode="trilinear", align_corners=False
+                    ).to(lat)
+            resized.append(keyframe)
+        d["minimax_keyframes"] = resized
+        out.append((tensor, d))
+    return out
+
+
+class SWAN_KeyframeResize:
+    """Rescale H3 keyframe/reference latents for the low-resolution stage.
+
+    The fused SelfLift sampler resizes keyframe conditioning internally; a split
+    graph needs this explicitly, otherwise the low-res stage receives reference
+    latents on the target grid.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "conditioning": ("CONDITIONING",),
+                "scale": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.05,
+                    "max": 4.0,
+                    "step": 0.01,
+                    "tooltip": "Latent width/height factor applied to keyframe latents (e.g. 0.5 for a 2x lift). Ignored when reference_latent is connected."
+                }),
+            },
+            "optional": {
+                "reference_latent": ("LATENT", {
+                    "tooltip": "Latent of the stage that will consume this conditioning (e.g. the low-res Empty MiniMax H3 AV Latent). Its grid is used exactly, avoiding rounding drift."
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
+    FUNCTION = "resize"
+    CATEGORY = "SwanBits/H3"
+    DESCRIPTION = (
+        "Rescales MiniMax H3 keyframe/reference latents inside CONDITIONING so the "
+        "low-resolution stage gets references on its own grid."
+    )
+
+    def resize(self, conditioning, scale, reference_latent=None):
+        grid = None
+        if reference_latent is not None:
+            ref_streams, _ = _streams(reference_latent["samples"])
+            _, ref = _video_stream(ref_streams)
+            grid = (ref.shape[-2], ref.shape[-1])
+        return (_resize_keyframes(conditioning, scale, grid),)
+
+
 def _resize_spatial_mask(mask, size):
     if tuple(mask.shape[-2:]) == tuple(size):
         return mask
@@ -374,6 +475,10 @@ class SWAN_TransitionLift:
                 "upscaler": ("H3_LATENT_UPSCALER", {
                     "tooltip": "Provider handle from the Swan H3 upscaler loader node."
                 }),
+                "keep_audio": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Protect the audio stream in the high-res stage (audio mask = 0). The fused SelfLift sampler carries audio across the boundary; a split graph re-noises it unless protected. Turn on for audio-driven / digital-human workflows."
+                }),
             }
         }
 
@@ -388,7 +493,7 @@ class SWAN_TransitionLift:
     )
 
     def lift(self, lowres_latent, target_scale, direct_lift, rho, w_min, w_max,
-             highres_latent=None, vae=None, upscaler=None):
+             highres_latent=None, vae=None, upscaler=None, keep_audio=False):
         src = lowres_latent["samples"]
         streams, nested = _streams(src)
         v_idx, video = _video_stream(streams)
@@ -448,6 +553,9 @@ class SWAN_TransitionLift:
             # keep inpaint masks working in the high-res stage: rescale the video
             # mask to the target grid, pass audio masks through untouched
             result["noise_mask"] = _carry_noise_mask(noise_mask, streams, v_idx, target_hw)
+        if keep_audio and len(out_streams) > 1:
+            # emulate the fused sampler: audio keeps crossing the boundary untouched
+            result["noise_mask"] = _audio_protect_mask(out_streams, v_idx, result.get("noise_mask"))
         return (result,)
 
 
@@ -455,10 +563,12 @@ NODE_CLASS_MAPPINGS = {
     "SWAN_H3UpscalerLoader": SWAN_H3UpscalerLoader,
     "SWAN_SigmasLowZero": SWAN_SigmasLowZero,
     "SWAN_TransitionLift": SWAN_TransitionLift,
+    "SWAN_KeyframeResize": SWAN_KeyframeResize,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SWAN_H3UpscalerLoader": "Swan Load H3 Latent Upscaler Model",
     "SWAN_SigmasLowZero": "Swan Sigmas Split: Low Runs to Zero",
     "SWAN_TransitionLift": "Swan SelfLift Transition Lift (H3)",
+    "SWAN_KeyframeResize": "Swan Resize H3 Keyframes (Conditioning)",
 }
