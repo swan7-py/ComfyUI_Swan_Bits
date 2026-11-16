@@ -68,7 +68,7 @@ class SWAN_SAM3DBodySolid:
         if total == 0:
             raise ValueError("Swan SAM3DBody Solid Colors: pose data has no people.")
         tint = [torch.tensor(c, dtype=torch.float32) for c in
-                resolve_colors(colors, total, to_linear=False)]
+                resolve_colors(colors or "", total, to_linear=False)]
 
         device = comfy.model_management.get_torch_device()
         cache = {}

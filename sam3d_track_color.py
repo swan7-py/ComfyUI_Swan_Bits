@@ -125,7 +125,7 @@ class SWAN_SAM3DTrackColor:
             raise ValueError("No 'trackNN' root nodes found; feed a SAM3DBody .glb.")
         roots.sort(key=lambda i: gltf["nodes"][i]["name"])
 
-        palette = resolve_colors(colors, len(roots))
+        palette = resolve_colors(colors or "", len(roots))
         materials = gltf.setdefault("materials", [])
 
         for slot, root_idx in enumerate(roots):
