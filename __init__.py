@@ -36,3 +36,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SWAN_SAM3DBodySolid": "Swan SAM3DBody Solid Colors",
     "SWAN_SAM3DTrackPalette": "Swan SAM3D Track Palette",
 }
+
+WEB_DIRECTORY = "./web"
