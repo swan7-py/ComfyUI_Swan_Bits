@@ -1,7 +1,7 @@
-from comfy_api.latest import io
+SLOT_COUNT = 12
 
 
-class SWAN_SAM3DTrackPalette(io.ComfyNode):
+class SWAN_SAM3DTrackPalette:
     """Optional: pin one colour per tracked person.
 
     Both Swan SAM3DBody Solid Colors (video) and Swan SAM3D Track Colors (GLB)
@@ -10,34 +10,34 @@ class SWAN_SAM3DTrackPalette(io.ComfyNode):
     number of people gets a distinct colour for free; wire it in only when you
     want to dictate the colours yourself.
 
-    Rows default to white. Entries past the tracked count are ignored, and a
-    shorter list repeats.
+    Twelve plain COLOR widgets rather than one list widget: the frontend's COLORS
+    control is registered with hideInPanel, so it only shows up in the Node 2.0
+    sidebar and is invisible on the node in the classic UI.
     """
 
     @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SWAN_SAM3DTrackPalette",
-            display_name="Swan SAM3D Track Palette",
-            category="SwanBits/3D",
-            description=(
-                "Optional colour overrides for tracked people. Wire the hex list into "
-                "both Swan SAM3D colour nodes; leave unwired for automatic colours."
-            ),
-            inputs=[
-                io.Colors.Input(
-                    "colors",
-                    default=["#ffffff", "#ffffff", "#ffffff", "#ffffff"],
-                    tooltip="One colour per tracked person, in track order.",
-                ),
-            ],
-            outputs=[io.String.Output(display_name="colors")],
-        )
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "color_%d" % i: ("COLOR", {
+                    "default": "#ffffff",
+                    "tooltip": "Person %d, counting in SAM3 track order. "
+                               "Slots past the tracked count are ignored." % i,
+                })
+                for i in range(1, SLOT_COUNT + 1)
+            }
+        }
 
-    @classmethod
-    def execute(cls, colors) -> io.NodeOutput:
-        # COLORS arrives either as an ordered dict or a plain list depending on
-        # how the graph was serialised; accept both rather than guess.
-        values = colors.values() if isinstance(colors, dict) else (colors or [])
-        picked = [value for value in values if value]
-        return io.NodeOutput(",".join(picked))
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("colors",)
+    FUNCTION = "build"
+    CATEGORY = "SwanBits/3D"
+    DESCRIPTION = (
+        "Optional colour overrides for up to %d tracked people. Wire the hex list "
+        "into both Swan SAM3D colour nodes; leave unwired for automatic colours."
+        % SLOT_COUNT
+    )
+
+    def build(self, **colors):
+        picked = [colors["color_%d" % i] for i in range(1, SLOT_COUNT + 1)]
+        return (",".join(c for c in picked if c),)
