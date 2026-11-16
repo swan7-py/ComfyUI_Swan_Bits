@@ -1,4 +1,4 @@
-SLOT_COUNT = 12
+SLOT_COUNT = 6
 
 
 class SWAN_SAM3DTrackPalette:
