@@ -8,6 +8,7 @@ from .h3_transition import (
     SWAN_KeyframeResize,
 )
 from .sam3d_track_color import SWAN_SAM3DTrackColor
+from .sam3d_body_solid import SWAN_SAM3DBodySolid
 
 NODE_CLASS_MAPPINGS = {
     "SWAN_MiniMaxH3AudioDrive": SWAN_MiniMaxH3AudioDrive,
@@ -18,6 +19,7 @@ NODE_CLASS_MAPPINGS = {
     "SWAN_KeyframeResize": SWAN_KeyframeResize,
     "SWAN_H3TiledModel": SWAN_H3TiledModel,
     "SWAN_SAM3DTrackColor": SWAN_SAM3DTrackColor,
+    "SWAN_SAM3DBodySolid": SWAN_SAM3DBodySolid,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -29,4 +31,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SWAN_KeyframeResize": "Swan Resize H3 Keyframes (Conditioning)",
     "SWAN_H3TiledModel": "Swan H3 Tiled Model (High Stage)",
     "SWAN_SAM3DTrackColor": "Swan SAM3D Track Colors",
+    "SWAN_SAM3DBodySolid": "Swan SAM3DBody Solid Colors",
 }

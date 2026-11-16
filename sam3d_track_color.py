@@ -47,7 +47,12 @@ def _to_linear(rgb):
     return tuple(c ** 2.2 for c in rgb)
 
 
-def _resolve_colors(spec, count):
+def resolve_colors(spec, count, to_linear=True):
+    """Resolve a colour spec into `count` RGB triples.
+
+    GLB materials need linear values (baseColorFactor is linear); the video
+    renderer writes float RGB straight into an IMAGE, which is sRGB.
+    """
     picked = []
     for token in spec.replace(";", ",").split(","):
         token = token.strip().lstrip("#")
@@ -56,10 +61,12 @@ def _resolve_colors(spec, count):
         if len(token) != 6:
             raise ValueError(f"'{token}' is not a 6-digit hex colour (e.g. e05a4f).")
         picked.append(tuple(int(token[i:i + 2], 16) / 255.0 for i in (0, 2, 4)))
-    if picked:
-        return [_to_linear(picked[i % len(picked)]) for i in range(count)]
-    # Empty spec: even hue spread so overlapping figures stay readable.
-    return [_to_linear(colorsys.hsv_to_rgb(i / count, 0.65, 0.9)) for i in range(count)]
+    if not picked:
+        # Empty spec: even hue spread so overlapping figures stay readable.
+        picked = [colorsys.hsv_to_rgb(i / count, 0.65, 0.9) for i in range(count)]
+        return picked if not to_linear else [_to_linear(c) for c in picked]
+    colors = [picked[i % len(picked)] for i in range(count)]
+    return [_to_linear(c) for c in colors] if to_linear else colors
 
 
 class SWAN_SAM3DTrackColor:
@@ -118,7 +125,7 @@ class SWAN_SAM3DTrackColor:
             raise ValueError("No 'trackNN' root nodes found; feed a SAM3DBody .glb.")
         roots.sort(key=lambda i: gltf["nodes"][i]["name"])
 
-        palette = _resolve_colors(colors, len(roots))
+        palette = resolve_colors(colors, len(roots))
         materials = gltf.setdefault("materials", [])
 
         for slot, root_idx in enumerate(roots):
