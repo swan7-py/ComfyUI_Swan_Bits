@@ -69,6 +69,28 @@ def resolve_colors(spec, count, to_linear=True):
     return [_to_linear(c) for c in colors] if to_linear else colors
 
 
+PALETTE_DEFAULTS = [
+    "#e65050", "#9be650", "#50e6e6", "#9b50e6",   # 原来的四等分色相
+    "#e69950", "#50e699", "#5099e6", "#e65099",   # 它们之间的半步，供 5~8 人
+]
+
+
+def color_inputs():
+    """Eight colour pickers so both colour nodes share one palette layout."""
+    slots = {}
+    for index, default in enumerate(PALETTE_DEFAULTS, start=1):
+        slots["color_%d" % index] = ("COLOR", {
+            "default": default,
+            "tooltip": "Person %d, counting in SAM3 track order. "
+                       "Slots past the tracked count are ignored." % index,
+        })
+    return slots
+
+
+def color_spec(colors):
+    return ",".join(colors["color_%d" % i] for i in range(1, len(PALETTE_DEFAULTS) + 1))
+
+
 class SWAN_SAM3DTrackColor:
     """Give every SAM3D track its own PBR material and pull the figures apart.
 
@@ -86,11 +108,6 @@ class SWAN_SAM3DTrackColor:
                 "model_3d": ("FILE_3D", {
                     "tooltip": "Animated .glb from Create 3D Animation File (BuildPoseFile).",
                 }),
-                "colors": ("STRING", {
-                    "default": "",
-                    "tooltip": "Comma separated hex colours, one per track (padded by repeating). "
-                               "Empty = automatic even hue spread.",
-                }),
                 "spacing": ("FLOAT", {
                     "default": 0.6,
                     "min": 0.0,
@@ -103,6 +120,7 @@ class SWAN_SAM3DTrackColor:
                     "tooltip": "Keep the COLOR_0 attribute. On, it multiplies with the material "
                                "colour and darkens it; only useful if you want the rainbow bake kept.",
                 }),
+                **color_inputs(),
             }
         }
 
@@ -115,7 +133,7 @@ class SWAN_SAM3DTrackColor:
         "Removes the overlapping-at-origin problem and the rainbow vertex bake."
     )
 
-    def apply(self, model_3d, colors, spacing, keep_vertex_colors):
+    def apply(self, model_3d, spacing, keep_vertex_colors, **colors):
         gltf, bin_chunk = _read_glb(model_3d.get_bytes())
 
         scene = gltf.get("scenes", [{}])[gltf.get("scene", 0)]
@@ -125,7 +143,7 @@ class SWAN_SAM3DTrackColor:
             raise ValueError("No 'trackNN' root nodes found; feed a SAM3DBody .glb.")
         roots.sort(key=lambda i: gltf["nodes"][i]["name"])
 
-        palette = resolve_colors(colors or "", len(roots))
+        palette = resolve_colors(color_spec(colors), len(roots))
         materials = gltf.setdefault("materials", [])
 
         for slot, root_idx in enumerate(roots):

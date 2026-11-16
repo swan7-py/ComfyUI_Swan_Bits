@@ -4,7 +4,7 @@ import torch
 import comfy.model_management
 from comfy_extras.sam3d_body.rasterizer import render_pose_data_torch
 
-from .sam3d_track_color import resolve_colors
+from .sam3d_track_color import color_inputs, color_spec, resolve_colors
 
 
 class SWAN_SAM3DBodySolid:
@@ -33,11 +33,7 @@ class SWAN_SAM3DBodySolid:
                     "default": 0, "min": 0, "max": 16384, "step": 8,
                     "tooltip": "Output height. 0 = use the pose data's native size.",
                 }),
-                "colors": ("STRING", {
-                    "default": "",
-                    "tooltip": "Comma separated hex colours, one per person (repeated to pad). "
-                               "Empty = automatic even hue spread, matching Swan SAM3D Track Colors.",
-                }),
+                **color_inputs(),
             },
             "optional": {
                 "background": ("IMAGE", {
@@ -56,7 +52,7 @@ class SWAN_SAM3DBodySolid:
         "so the video and the exported GLB use the same palette."
     )
 
-    def render(self, pose_data, width, height, colors, background=None):
+    def render(self, pose_data, width, height, background=None, **colors):
         frames = pose_data["frames"]
         native_h, native_w = pose_data["image_size"]
         out_w = int(width) or int(native_w)
@@ -68,7 +64,7 @@ class SWAN_SAM3DBodySolid:
         if total == 0:
             raise ValueError("Swan SAM3DBody Solid Colors: pose data has no people.")
         tint = [torch.tensor(c, dtype=torch.float32) for c in
-                resolve_colors(colors or "", total, to_linear=False)]
+                resolve_colors(color_spec(colors), total, to_linear=False)]
 
         device = comfy.model_management.get_torch_device()
         cache = {}
