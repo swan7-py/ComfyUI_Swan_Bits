@@ -74,6 +74,27 @@ Empty H3 AV Latent (低清) → SamplerCustom (低清, low_sigmas, 用原始 MOD
 **显存预算**：`tiles=0` 时按可用工作区自动挑 1–8 块；但本机 ComfyUI 的 `MIN_WEIGHT_MEMORY_RATIO` 为 0，估计偏乐观，显存吃紧时建议直接指定 `tiles`。日志里会打印 `[Swan_Bits tiling plan]` / `[Swan_Bits tiling memory]` 供核对。/ With `tiles=0` the tile count is picked automatically from the estimated workspace, but this ComfyUI reports `MIN_WEIGHT_MEMORY_RATIO = 0.0`, which makes that estimate optimistic — set `tiles` explicitly when VRAM is tight.
 
 
+### Swan SAM3D Track Colors
+把多人动作的 `.glb` 按人上纯色材质、并沿 X 方向排开，方便在 3D 查看器里区分 track。颜色写进 glTF 的 `baseColorFactor`（线性值，节点内部做 sRGB→linear 转换），不做顶点色烘焙。/ Gives every person in an animated `.glb` a solid material colour and spreads them along X. Colours are written to `baseColorFactor` in linear space; no vertex-colour bake.
+
+- 输入 / Inputs: `model_3d` (FILE_3D，来自 `Create 3D Animation File (BuildPoseFile)` 的 `.glb`), `spacing` (FLOAT，X 向间距，`0` = 全部叠在原地), `keep_vertex_colors` (BOOLEAN，保留 `COLOR_0`；开启后会与材质色相乘、整体变暗), `colors` (STRING，逗号分隔的 6 位 hex，按 track 顺序)
+- 输出 / Outputs: `model_3d` (FILE_3D)
+
+`colors` 留空时按人数自动均匀取色相，多人重叠也能分清。/ An empty `colors` falls back to an even hue spread across all tracks.
+
+### Swan SAM3DBody Solid Colors
+把 `SAM3DBody Predict` 的姿态数据直接渲染成纯色人体剪影视频，可选叠在实拍底片上。按人上色，颜色规则与 Swan SAM3D Track Colors 一致，两路可以共用同一个 `colors` 字符串。/ Renders `SAM3DBody Predict` pose data into a solid-colour silhouette video, optionally over a plate. Colours follow the same rule as Swan SAM3D Track Colors, so both nodes can share one `colors` string.
+
+- 输入 / Inputs: `pose_data` (MHR_POSE_DATA), `width` / `height` (INT，`0` = 用姿态数据的原始尺寸)
+- 可选 / Optional: `background` (IMAGE，逐帧底片，不接则黑底)
+- 输出 / Outputs: `image` (IMAGE)
+
+### Swan SAM3D Track Palette
+颜色调色板：`inputcount` 决定暴露几个颜色输入，每个输入接一个颜色控件，输出一条逗号分隔的 hex 字符串，直接喂给上面两个节点的 `colors`。改完 `inputcount` 要点「Update inputs」。/ A colour palette: `inputcount` decides how many colour inputs show up; the node joins them into one comma separated hex string for the `colors` input of the two nodes above. Click "Update inputs" after changing the count.
+
+- 输入 / Inputs: `inputcount` (INT), `color_1..N` (STRING，需连线 / must be linked)
+- 输出 / Outputs: `colors` (STRING)
+
 ## 鸣谢 / Acknowledgements
 
 - [SelfLift: Accelerating Few-Step Diffusion via Self-Recovering Resolution Transition](https://arxiv.org/abs/2609.02036) —— SelfLift-zero 过渡算法来源；ComfyUI 实现参考 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift)，感谢原作者。/ Source of the SelfLift-zero transition algorithm; ComfyUI implementation reference.
